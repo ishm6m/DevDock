@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in DevDock isn't working as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+      placeholder: DevDock showed a server on port 3000 but "Kill" didn't stop it…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start `next dev` on port 3000
+        2. Open DevDock, click Kill
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "14.5 (Sonoma)"
+    validations:
+      required: true
+  - type: input
+    id: devdock
+    attributes:
+      label: DevDock version
+      description: See the menu-bar panel footer, or the Release you downloaded.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console logs (optional)
+      description: |
+        Relevant lines from Console.app filtered by "DevDock", or `log show --predicate 'subsystem == "com.devdock.DevDock"' --last 5m`.
+      render: text
