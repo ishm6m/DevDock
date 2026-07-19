@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>DevDock</string>
+	<key>CFBundleDisplayName</key>
+	<string>DevDock</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSSupportsAutomaticTermination</key>
+	<true/>
+	<key>NSSupportsSuddenTermination</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>DevDock is open source under the MIT License.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+
+	<!--
+	  Sparkle auto-update configuration.
+
+	  The two values below are PLACEHOLDERS. A maintainer replaces them at release
+	  time (see README → "Automatic updates"). Until then `SparkleUpdater` detects the
+	  placeholders and stays dormant, so builds from source never see Sparkle's
+	  "improperly configured" alert.
+
+	  - SUFeedURL: the HTTPS URL of the hosted appcast.xml.
+	  - SUPublicEDKey: the *public* half of the EdDSA key pair from Sparkle's
+	    `generate_keys`. Public, so it belongs in source control; the private key never does.
+	-->
+	<key>SUFeedURL</key>
+	<string>https://OWNER.github.io/DevDock/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_YOUR_SPARKLE_ED25519_PUBLIC_KEY</string>
+	<!-- Enable background checks by default and suppress Sparkle's own first-run
+	     permission prompt; DevDock surfaces the toggle in Preferences instead. -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>

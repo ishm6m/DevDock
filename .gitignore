@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# XcodeGen generates the project; keep it out of source control.
+DevDock.xcodeproj/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Signing / secrets
+*.p12
+*.mobileprovision
+ExportOptions.plist
+
+# Local agent / editor state
+.claude/
+
+# Release artifacts
+*.dmg
+
+# Misc
+*.log

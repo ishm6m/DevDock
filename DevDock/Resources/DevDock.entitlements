@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  DevDock is intentionally NOT sandboxed. Its core purpose is to inspect and
+	  control other local processes (via lsof/libproc, kill(2), and spawning
+	  restart commands). The App Sandbox required by the Mac App Store forbids all
+	  of this, so DevDock is distributed directly (Developer ID + notarization).
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
