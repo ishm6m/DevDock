@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The preferences window, presented via the SwiftUI `Settings` scene.
 struct PreferencesView: View {
@@ -135,19 +136,10 @@ struct PreferencesView: View {
 
     private var aboutTab: some View {
         VStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.accentColor.gradient)
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
                 .frame(width: 76, height: 76)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center))
-                )
-                .overlay(
-                    Image(systemName: "bolt.horizontal.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.white)
-                )
-                .shadow(color: .accentColor.opacity(0.4), radius: 8, y: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .accessibilityHidden(true)
 
             Text("DevDock").font(.title2.bold())

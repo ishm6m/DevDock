@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The one-time first-run welcome.
 ///
@@ -45,22 +46,12 @@ struct OnboardingView: View {
         .padding(.horizontal, 28)
     }
 
-    /// The same accent-gradient tile used on the About tab, for a consistent identity.
+    /// The app's own icon, matching the About tab for a consistent identity.
     private var appTile: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(Color.accentColor.gradient)
+        Image(nsImage: NSApplication.shared.applicationIconImage)
+            .resizable()
             .frame(width: 72, height: 72)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(colors: [.white.opacity(0.28), .clear],
-                                         startPoint: .top, endPoint: .center))
-            )
-            .overlay(
-                Image(systemName: "bolt.horizontal.fill")
-                    .font(.system(size: 32, weight: .semibold))
-                    .foregroundStyle(.white)
-            )
-            .shadow(color: .accentColor.opacity(0.4), radius: 8, y: 3)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .accessibilityHidden(true)
     }
 

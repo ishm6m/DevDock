@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="DevDock-logo.png" alt="DevDock" width="160" height="160" />
+</p>
+
 # DevDock 🚀
 
 [![CI](https://github.com/ishm6m/DevDock/actions/workflows/ci.yml/badge.svg)](https://github.com/ishm6m/DevDock/actions/workflows/ci.yml)
