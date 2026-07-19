@@ -28,5 +28,8 @@ ExportOptions.plist
 # Release artifacts
 *.dmg
 
+# High-res logo master — redundant with the committed app-icon slices, kept local only
+/DevDock-logo 1.png
+
 # Misc
 *.log
