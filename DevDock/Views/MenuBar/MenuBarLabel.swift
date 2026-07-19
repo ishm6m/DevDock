@@ -32,7 +32,7 @@ struct MenuBarLabel: View {
     /// A full-alpha fill reads as "active"; a half-alpha fill dims it for the idle state —
     /// the same crisp shape either way, which stays legible at 16px where a stroked
     /// outline would smear. The porthole is punched with an even-odd fill.
-    private static func rocketGlyph(active: Bool) -> NSImage {
+    static func rocketGlyph(active: Bool) -> NSImage {
         let image = NSImage(size: NSSize(width: 15, height: 16), flipped: false) { rect in
             func p(_ fx: CGFloat, _ fy: CGFloat) -> NSPoint {
                 NSPoint(x: rect.minX + fx * rect.width, y: rect.minY + fy * rect.height)

@@ -62,7 +62,7 @@ struct OnboardingView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.tint)
                 .accessibilityHidden(true)
-            Text("DevDock lives in your menu bar. Click the bolt up top anytime to see what's running.")
+            Text("DevDock lives in your menu bar. Click the rocket up top anytime to see what's running.")
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

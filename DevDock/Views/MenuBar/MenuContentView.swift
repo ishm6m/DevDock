@@ -76,8 +76,9 @@ struct MenuContentView: View {
 
     private var header: some View {
         HStack(spacing: 9) {
-            Image(systemName: "bolt.horizontal.circle.fill")
-                .font(.system(size: 18))
+            Image(nsImage: MenuBarLabel.rocketGlyph(active: true))
+                .resizable()
+                .frame(width: 17, height: 18)
                 .foregroundStyle(.tint)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
@@ -131,7 +132,7 @@ struct MenuContentView: View {
                     if !viewModel.conflictPortsSummary.isEmpty { conflictBanner }
 
                     section(title: "Favorites", systemImage: "star.fill", servers: viewModel.favoriteServers)
-                    section(title: "Servers", systemImage: "bolt.horizontal.fill", servers: viewModel.otherServers)
+                    section(title: "Servers", systemImage: "server.rack", servers: viewModel.otherServers)
 
                     if !viewModel.databases.isEmpty {
                         SectionHeader(title: "Databases", systemImage: "cylinder.split.1x2", count: viewModel.databases.count)
