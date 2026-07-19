@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # XcodeGen emits a modern project format (objectVersion 77) that needs
+      # Xcode 16+; the runner defaults to an older Xcode, so pick the newest one.
+      - name: Select latest stable Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)"
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
