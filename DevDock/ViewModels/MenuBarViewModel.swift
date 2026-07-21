@@ -46,7 +46,11 @@ final class MenuBarViewModel: ObservableObject {
             environment.preferencesStore.objectWillChange,
         ] {
             publisher
-                .receive(on: RunLoop.main)
+                // DispatchQueue, not RunLoop: `RunLoop.main` only delivers in the
+                // default run-loop mode, so updates stall whenever the main run loop
+                // is tracking (panel interaction, scrolling) — discovery would find a
+                // new server and the panel would keep showing the old list.
+                .receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.objectWillChange.send() }
                 .store(in: &cancellables)
         }
@@ -234,6 +238,12 @@ final class MenuBarViewModel: ObservableObject {
 
     func refreshNow() {
         Task { await environment.coordinator.refresh() }
+    }
+
+    /// Tells discovery whether the panel is on screen, so it can poll faster while
+    /// the user is actually looking at it.
+    func setPanelOpen(_ isOpen: Bool) {
+        environment.coordinator.isPanelOpen = isOpen
     }
 
     // MARK: - Feedback

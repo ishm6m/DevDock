@@ -20,6 +20,14 @@ struct MenuContentView: View {
             footer
         }
         .frame(width: 384)
+        // Scan the moment the panel opens, rather than showing whatever the last
+        // periodic pass found up to a full interval ago, and speed the loop up while
+        // it stays open.
+        .onAppear {
+            viewModel.setPanelOpen(true)
+            viewModel.refreshNow()
+        }
+        .onDisappear { viewModel.setPanelOpen(false) }
         .overlay(alignment: .bottom) { toastOverlay }
         // Destructive confirmations are rendered *inside* the panel, not via
         // `.confirmationDialog`/`.alert`. A system dialog is a separate, focus-stealing

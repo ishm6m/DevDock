@@ -21,6 +21,10 @@ final class DiscoveryCoordinator: ObservableObject {
     private let preferencesStore: PreferencesStore
     private let autoStop: AutoStopController
 
+    /// True while the menu bar panel is on screen. The user is watching, so the loop
+    /// polls faster; a scan costs ~25ms, so this is cheap for the moments it's set.
+    var isPanelOpen = false
+
     private var loopTask: Task<Void, Never>?
     private var lastServersByID: [String: DevServer] = [:]
     private var notifiedConflicts: Set<Int> = []
@@ -53,7 +57,11 @@ final class DiscoveryCoordinator: ObservableObject {
         loopTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
-                let interval = self?.preferencesStore.preferences.refreshInterval ?? 3
+                // Poll at 1s while the panel is open so a server that starts under the
+                // user's eyes appears almost immediately; `min` keeps an explicitly
+                // faster preference intact.
+                let base = self?.preferencesStore.preferences.refreshInterval ?? 3
+                let interval = self?.isPanelOpen == true ? min(1, base) : base
                 let nanos = UInt64(max(0.5, interval) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanos)
             }

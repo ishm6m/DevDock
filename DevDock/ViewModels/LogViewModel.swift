@@ -18,7 +18,9 @@ final class LogViewModel: ObservableObject {
         self.managedPID = managedPID
         self.logService = logService
         cancellable = logService.objectWillChange
-            .receive(on: RunLoop.main)
+            // DispatchQueue, not RunLoop — see `MenuBarViewModel`: default-mode-only
+            // delivery stalls live output while the window is being scrolled.
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.objectWillChange.send() }
     }
 
