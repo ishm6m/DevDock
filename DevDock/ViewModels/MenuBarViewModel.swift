@@ -77,8 +77,11 @@ final class MenuBarViewModel: ObservableObject {
 
     private var filteredServers: [DevServer] {
         let all = environment.coordinator.servers
-        guard !trimmedSearch.isEmpty else { return all }
-        return all.filter { matches($0) }
+        // Lower-case the query once, not once per server — this runs several times per
+        // panel render (favorites, others, the layout token, the empty check).
+        let query = trimmedSearch.lowercased()
+        guard !query.isEmpty else { return all }
+        return all.filter { matches($0, query: query) }
     }
 
     /// Pinned servers, kept in the engine's ordering.
@@ -274,6 +277,7 @@ final class MenuBarViewModel: ObservableObject {
         runExclusive(container) { [weak self] in
             guard let self else { return }
             let ok = await self.environment.dockerService.stop(id: container.id)
+            await self.environment.engine.invalidateDockerCache()
             await self.environment.coordinator.refresh()
             self.showFeedback(
                 ok ? "Stopped \(container.name)" : "Couldn't stop \(container.name)",
@@ -287,6 +291,7 @@ final class MenuBarViewModel: ObservableObject {
         runExclusive(container) { [weak self] in
             guard let self else { return }
             let ok = await self.environment.dockerService.restart(id: container.id)
+            await self.environment.engine.invalidateDockerCache()
             await self.environment.coordinator.refresh()
             self.showFeedback(
                 ok ? "Restarted \(container.name)" : "Couldn't restart \(container.name)",
@@ -317,8 +322,7 @@ final class MenuBarViewModel: ObservableObject {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func matches(_ server: DevServer) -> Bool {
-        let query = trimmedSearch.lowercased()
+    private func matches(_ server: DevServer, query: String) -> Bool {
         if server.title.lowercased().contains(query) { return true }
         if server.framework.displayName.lowercased().contains(query) { return true }
         if String(server.port.number).contains(query) { return true }

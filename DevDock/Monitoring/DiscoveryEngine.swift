@@ -30,6 +30,14 @@ actor DiscoveryEngine {
     private var staticCache: [Int32: StaticInfo] = [:]
     private var managedPIDs: Set<Int32> = []
 
+    /// Docker and tunnel probes are expensive relative to the port scan — `docker ps`
+    /// forks a process and talks to the daemon (~120ms), and tunnel detection names
+    /// every PID on the system. Both describe things that change on human timescales,
+    /// so they are re-probed at most this often rather than once per refresh.
+    private static let auxiliaryProbeInterval: TimeInterval = 5
+    private var cachedContainers: (value: [DockerContainer], at: Date)?
+    private var cachedTunnels: (value: [Tunnel], at: Date)?
+
     /// Command-name fragments that are never dev servers: macOS daemons, Docker
     /// plumbing, and — importantly — editor/browser "helper" processes, which each
     /// listen on a loopback port and would otherwise drown out real servers. Matched
@@ -90,6 +98,11 @@ actor DiscoveryEngine {
         staticCache[pid] = nil
     }
 
+    /// Forces the next pass to re-probe Docker, bypassing `auxiliaryProbeInterval`.
+    /// Called after the user stops or restarts a container so the panel reflects the
+    /// action immediately instead of up to five seconds later.
+    func invalidateDockerCache() { cachedContainers = nil }
+
     // MARK: - Discovery
 
     func discover(preferences: Preferences) async -> DiscoverySnapshot {
@@ -112,10 +125,10 @@ actor DiscoveryEngine {
             let key = "\(record.pid)-\(record.port)"
             guard seenKeys.insert(key).inserted else { continue }
 
-            guard let metrics = processMonitor.metrics(for: record.pid, now: now) else { continue }
+            guard let usage = processMonitor.usage(for: record.pid, now: now) else { continue }
             activePIDs.insert(record.pid)
 
-            let info = staticInfo(for: record.pid, snapshot: metrics.snapshot, port: record.port)
+            guard let info = staticInfo(for: record.pid, port: record.port) else { continue }
 
             let commandString = info.arguments.isEmpty
                 ? (record.command.isEmpty ? info.commandName : record.command)
@@ -131,7 +144,7 @@ actor DiscoveryEngine {
                 workingDirectory: info.workingDirectory,
                 project: info.project,
                 git: info.git,
-                resources: metrics.usage,
+                resources: usage,
                 launchDate: info.launchDate,
                 managedRootPID: managedRootPID(for: record.pid),
                 hasPortConflict: conflictPorts.contains(record.port)
@@ -140,13 +153,16 @@ actor DiscoveryEngine {
 
         pruneCaches(activePIDs: activePIDs)
 
-        servers.sort { lhs, rhs in
-            let l = lhs.title.lowercased(), r = rhs.title.lowercased()
-            return l == r ? lhs.port.number < rhs.port.number : l < r
+        // Decorate-sort-undecorate: `title` is a computed string and lowercasing it inside
+        // the comparator rebuilt it O(n log n) times. Build each key once instead.
+        var keyed: [(key: String, server: DevServer)] = servers.map { ($0.title.lowercased(), $0) }
+        keyed.sort { lhs, rhs in
+            lhs.key == rhs.key ? lhs.server.port.number < rhs.server.port.number : lhs.key < rhs.key
         }
+        servers = keyed.map(\.server)
 
-        let containers = preferences.monitorDocker ? await dockerService.containers() : []
-        let tunnels = preferences.monitorTunnels ? await tunnelDetector.detect() : []
+        let containers = preferences.monitorDocker ? await containers(now: now) : []
+        let tunnels = preferences.monitorTunnels ? await tunnels(now: now) : []
 
         return DiscoverySnapshot(
             servers: servers,
@@ -157,10 +173,34 @@ actor DiscoveryEngine {
         )
     }
 
+    // MARK: - Throttled auxiliary probes
+
+    private func containers(now: Date) async -> [DockerContainer] {
+        if let cached = cachedContainers, now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
+            return cached.value
+        }
+        let value = await dockerService.containers()
+        cachedContainers = (value, now)
+        return value
+    }
+
+    private func tunnels(now: Date) async -> [Tunnel] {
+        if let cached = cachedTunnels, now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
+            return cached.value
+        }
+        let value = await tunnelDetector.detect()
+        cachedTunnels = (value, now)
+        return value
+    }
+
     // MARK: - Helpers
 
-    private func staticInfo(for pid: Int32, snapshot: Proc.Snapshot, port: Int) -> StaticInfo {
+    /// The per-PID metadata that never changes while the process lives. The expensive
+    /// kernel reads (argv, exec path, cwd) happen here, on a cache miss only — never on
+    /// the per-refresh path.
+    private func staticInfo(for pid: Int32, port: Int) -> StaticInfo? {
         if let cached = staticCache[pid] { return cached }
+        guard let snapshot = Proc.snapshot(pid) else { return nil }
 
         let project = projectLocator.locate(fromWorkingDirectory: snapshot.workingDirectory)
         let git = gitService.info(forProjectRoot: project?.rootPath)

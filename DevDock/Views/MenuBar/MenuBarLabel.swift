@@ -32,7 +32,15 @@ struct MenuBarLabel: View {
     /// A full-alpha fill reads as "active"; a half-alpha fill dims it for the idle state —
     /// the same crisp shape either way, which stays legible at 16px where a stroked
     /// outline would smear. The porthole is punched with an even-odd fill.
-    static func rocketGlyph(active: Bool) -> NSImage {
+    /// Built once per state and reused. The glyph never varies, but this is re-read on
+    /// every label render — i.e. on every discovery tick for the life of the app — so
+    /// rebuilding the bezier paths each time was pure waste.
+    static func rocketGlyph(active: Bool) -> NSImage { active ? activeGlyph : idleGlyph }
+
+    private static let activeGlyph = drawRocket(active: true)
+    private static let idleGlyph = drawRocket(active: false)
+
+    private static func drawRocket(active: Bool) -> NSImage {
         let image = NSImage(size: NSSize(width: 15, height: 16), flipped: false) { rect in
             func p(_ fx: CGFloat, _ fy: CGFloat) -> NSPoint {
                 NSPoint(x: rect.minX + fx * rect.width, y: rect.minY + fy * rect.height)

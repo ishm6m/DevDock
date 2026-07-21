@@ -14,37 +14,34 @@ final class ProcessMonitor {
         let timestamp: Date
     }
 
-    /// The static + dynamic facts we can learn about a process from the kernel.
-    struct Metrics {
-        let snapshot: Proc.Snapshot
-        let usage: ResourceUsage
-    }
-
     private var previousCPU: [Int32: CPUSample] = [:]
 
-    /// Samples a process and returns its metrics, or `nil` if it has gone away.
+    /// Samples a process's live resource usage, or `nil` if it has gone away.
     /// CPU% is 0 on the first sample for a PID (no prior baseline yet).
-    func metrics(for pid: Int32, now: Date = Date()) -> Metrics? {
-        guard let snapshot = Proc.snapshot(pid) else {
+    ///
+    /// This deliberately reads *only* `proc_taskinfo`, not a full `Proc.snapshot`.
+    /// Everything else a snapshot gathers — argv via `KERN_PROCARGS2`, the executable
+    /// path, the vnode working directory — is static for the life of a PID and is
+    /// cached by `DiscoveryEngine`, so fetching it on every tick cost three extra
+    /// syscalls and several kilobytes of scratch buffers *per server, per refresh*.
+    func usage(for pid: Int32, now: Date = Date()) -> ResourceUsage? {
+        guard let task = Proc.taskInfo(pid) else {
             previousCPU[pid] = nil
             return nil
         }
+        let cpuTimeNanoseconds = task.pti_total_user + task.pti_total_system
 
         var cpuPercent = 0.0
         if let previous = previousCPU[pid] {
             let elapsedNanoseconds = now.timeIntervalSince(previous.timestamp) * 1_000_000_000
-            if elapsedNanoseconds > 0, snapshot.cpuTimeNanoseconds >= previous.cpuTimeNanoseconds {
-                let deltaCPU = Double(snapshot.cpuTimeNanoseconds - previous.cpuTimeNanoseconds)
+            if elapsedNanoseconds > 0, cpuTimeNanoseconds >= previous.cpuTimeNanoseconds {
+                let deltaCPU = Double(cpuTimeNanoseconds - previous.cpuTimeNanoseconds)
                 cpuPercent = (deltaCPU / elapsedNanoseconds) * 100.0
             }
         }
-        previousCPU[pid] = CPUSample(cpuTimeNanoseconds: snapshot.cpuTimeNanoseconds, timestamp: now)
+        previousCPU[pid] = CPUSample(cpuTimeNanoseconds: cpuTimeNanoseconds, timestamp: now)
 
-        let usage = ResourceUsage(
-            cpuPercent: cpuPercent,
-            memoryBytes: snapshot.residentMemoryBytes
-        )
-        return Metrics(snapshot: snapshot, usage: usage)
+        return ResourceUsage(cpuPercent: cpuPercent, memoryBytes: task.pti_resident_size)
     }
 
     /// Drops cached CPU samples for PIDs that are no longer present, so the cache

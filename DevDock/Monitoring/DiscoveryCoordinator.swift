@@ -57,15 +57,24 @@ final class DiscoveryCoordinator: ObservableObject {
         loopTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
-                // Poll at 1s while the panel is open so a server that starts under the
-                // user's eyes appears almost immediately; `min` keeps an explicitly
-                // faster preference intact.
-                let base = self?.preferencesStore.preferences.refreshInterval ?? 3
-                let interval = self?.isPanelOpen == true ? min(1, base) : base
-                let nanos = UInt64(max(0.5, interval) * 1_000_000_000)
+                let nanos = UInt64(max(0.5, self?.nextInterval() ?? 3) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanos)
             }
         }
+    }
+
+    /// How long to wait before the next pass.
+    ///
+    /// Open panel wins outright — the user is watching, so a server that starts under
+    /// their eyes must appear immediately (`min` keeps an explicitly faster preference
+    /// intact). With the panel closed a pass only feeds the menu bar count and the
+    /// started/stopped notifications, so in Low Power Mode it backs off: the user has
+    /// asked the system to conserve and nothing is on screen to go stale.
+    private func nextInterval() -> Double {
+        let base = preferencesStore.preferences.refreshInterval
+        if isPanelOpen { return min(1, base) }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { return max(base, 10) }
+        return base
     }
 
     func stop() {

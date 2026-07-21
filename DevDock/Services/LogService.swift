@@ -12,7 +12,9 @@ import Combine
 final class LogService: ObservableObject {
 
     struct LogLine: Identifiable, Hashable {
-        let id = UUID()
+        /// A monotonic counter rather than a `UUID`: a chatty server emits thousands of
+        /// lines a second, and this is both cheaper to mint and cheaper to hash.
+        let id: Int
         let text: String
         let isError: Bool
         let date: Date
@@ -22,6 +24,7 @@ final class LogService: ObservableObject {
     @Published private(set) var buffers: [Int32: [LogLine]] = [:]
 
     private var processes: [Int32: Process] = [:]
+    private var nextLineID = 0
     private let maxLines = 2_000
 
     /// Begins capturing output for a launched process. The process must have `Pipe`
@@ -66,14 +69,17 @@ final class LogService: ObservableObject {
 
     private func append(pid: Int32, text: String, isError: Bool) {
         guard buffers[pid] != nil else { return }
-        var lines = buffers[pid] ?? []
         let now = Date()
+        // Append *through the subscript*. Binding `var lines = buffers[pid]` leaves the
+        // dictionary holding a second reference to the storage, so the first append
+        // triggers a copy-on-write of the whole buffer — up to 2,000 elements copied for
+        // every chunk of output a server produces.
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
-            lines.append(LogLine(text: String(rawLine), isError: isError, date: now))
+            nextLineID += 1
+            buffers[pid]?.append(LogLine(id: nextLineID, text: String(rawLine), isError: isError, date: now))
         }
-        if lines.count > maxLines {
-            lines.removeFirst(lines.count - maxLines)
+        if let overflow = buffers[pid].map({ $0.count - maxLines }), overflow > 0 {
+            buffers[pid]?.removeFirst(overflow)
         }
-        buffers[pid] = lines
     }
 }

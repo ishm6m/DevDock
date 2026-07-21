@@ -24,7 +24,11 @@ final class TunnelDetector: @unchecked Sendable {
 
     func detect() async -> [Tunnel] {
         let named = Self.enumerateNamedProcesses()
-        var tunnels = await ngrokTunnels(named: named)
+        // Only touch the ngrok REST API when ngrok is actually running. Unconditionally
+        // hitting 127.0.0.1:4040 meant a connect + 1s-timeout URLSession request on every
+        // single refresh for the overwhelming majority of users, who have no ngrok at all.
+        let hasNgrok = named.contains { $0.name == "ngrok" }
+        var tunnels = hasNgrok ? await ngrokTunnels(named: named) : []
         tunnels += processTunnels(named: named)
 
         var seen: Set<String> = []
