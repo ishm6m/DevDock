@@ -28,7 +28,7 @@ final class AppEnvironment {
         let dockerService = DockerService(runner: runner)
 
         let engine = DiscoveryEngine(
-            portScanner: PortScanner(runner: runner),
+            portScanner: PortScanner(),
             processMonitor: ProcessMonitor(),
             frameworkDetector: FrameworkDetector(),
             projectLocator: ProjectLocator(),

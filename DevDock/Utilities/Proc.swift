@@ -5,8 +5,8 @@ import Foundation
 ///
 /// DevDock uses these to gather per-process metadata (working directory, memory,
 /// CPU time, thread count, launch time, full command line) **without spawning a
-/// shell per process**. `lsof` is used only once per refresh to map listening
-/// ports to PIDs; everything else comes from these cheap syscalls.
+/// single subprocess**. Port-to-PID mapping goes through `libproc` too — see
+/// `PortScanner`, which replaced the old per-refresh `lsof` fork.
 ///
 /// All calls are best-effort: they return `nil` on failure (permission denied,
 /// the process died between calls, etc.) and never trap.

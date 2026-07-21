@@ -33,27 +33,47 @@ actor DiscoveryEngine {
     /// Docker and tunnel probes are expensive relative to the port scan — `docker ps`
     /// forks a process and talks to the daemon (~120ms), and tunnel detection names
     /// every PID on the system. Both describe things that change on human timescales,
-    /// so they are re-probed at most this often rather than once per refresh.
+    /// so they are re-probed at most this often rather than once per refresh — and only
+    /// while the panel is open, since both feed panel-only sections (`probeAuxiliary`).
     private static let auxiliaryProbeInterval: TimeInterval = 5
     private var cachedContainers: (value: [DockerContainer], at: Date)?
     private var cachedTunnels: (value: [Tunnel], at: Date)?
 
-    /// Command-name fragments that are never dev servers: macOS daemons, Docker
-    /// plumbing, and — importantly — editor/browser "helper" processes, which each
-    /// listen on a loopback port and would otherwise drown out real servers. Matched
-    /// case-insensitively as substrings, so "helper" catches "Code Helper (Plugin)".
-    private static let systemDenylist: [String] = [
+    /// Command names that are never dev servers: macOS daemons, Docker plumbing, and
+    /// desktop apps that each listen on a loopback port and would otherwise drown out
+    /// real servers.
+    ///
+    /// Matched *exactly* against the lowercased command name. `lsof +c 0` reports the
+    /// full executable basename, so exact is sufficient — and substring matching was
+    /// actively wrong: `contains("arc")` also swallowed `search-server`, `marcy`, and
+    /// anything else with those three letters anywhere in its name.
+    static let denylistNames: Set<String> = [
         // macOS daemons
         "rapportd", "controlce", "controlcenter", "sharingd", "identityservicesd",
         "remoted", "airplayxpchelper", "sshd", "cupsd", "mdnsresponder", "netbiosd",
         "rpcbind",
         // Docker host plumbing (containers appear in their own section)
-        "com.docker", "docker", "dockerd", "vpnkit",
-        // Editor / browser / desktop-app helper processes
-        "helper", "electron",
-        "google chrome", "chromium", "firefox", "safari", "brave", "microsoft edge", "arc",
-        "slack", "discord", "spotify", "notion", "zoom",
+        "docker", "dockerd", "vpnkit",
+        // Desktop apps
+        "arc", "safari", "firefox", "chromium", "google chrome", "brave browser",
+        "microsoft edge", "slack", "discord", "spotify", "notion", "zoom", "zoom.us",
     ]
+
+    /// Denied when they appear as a whole *word* in the command name. Desktop apps
+    /// spawn a swarm of helpers — "Google Chrome Helper (Renderer)", "Slack Helper" —
+    /// whose names can't be enumerated, but a word match still can't hit `helperton`.
+    static let denylistWords: Set<String> = ["helper", "electron"]
+
+    /// True for command names that should never appear as a dev server.
+    static func isDenied(_ lowercasedName: String) -> Bool {
+        if denylistNames.contains(lowercasedName) { return true }
+        // A real reverse-DNS namespace, so a prefix here can't over-match: this is
+        // com.docker.backend, com.docker.extensions, and friends.
+        if lowercasedName.hasPrefix("com.docker") { return true }
+        return lowercasedName
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .contains { denylistWords.contains(String($0)) }
+    }
 
     /// Command names surfaced in the Tunnels section instead of the server list.
     private static let tunnelNames: Set<String> = ["ngrok", "cloudflared", "lt"]
@@ -105,7 +125,10 @@ actor DiscoveryEngine {
 
     // MARK: - Discovery
 
-    func discover(preferences: Preferences) async -> DiscoverySnapshot {
+    /// - Parameter probeAuxiliary: whether to re-probe Docker and tunnels. Both feed
+    ///   panel-only sections, so the caller passes `false` while the panel is closed and
+    ///   the last known values are reused — see `containers(now:probe:)`.
+    func discover(preferences: Preferences, probeAuxiliary: Bool = true) async -> DiscoverySnapshot {
         let records = await portScanner.scan()
         let now = Date()
 
@@ -161,8 +184,8 @@ actor DiscoveryEngine {
         }
         servers = keyed.map(\.server)
 
-        let containers = preferences.monitorDocker ? await containers(now: now) : []
-        let tunnels = preferences.monitorTunnels ? await tunnels(now: now) : []
+        let containers = preferences.monitorDocker ? await containers(now: now, probe: probeAuxiliary) : []
+        let tunnels = preferences.monitorTunnels ? await tunnels(now: now, probe: probeAuxiliary) : []
 
         return DiscoverySnapshot(
             servers: servers,
@@ -175,19 +198,23 @@ actor DiscoveryEngine {
 
     // MARK: - Throttled auxiliary probes
 
-    private func containers(now: Date) async -> [DockerContainer] {
-        if let cached = cachedContainers, now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
+    private func containers(now: Date, probe: Bool) async -> [DockerContainer] {
+        if let cached = cachedContainers,
+           !probe || now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
             return cached.value
         }
+        guard probe else { return [] }
         let value = await dockerService.containers()
         cachedContainers = (value, now)
         return value
     }
 
-    private func tunnels(now: Date) async -> [Tunnel] {
-        if let cached = cachedTunnels, now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
+    private func tunnels(now: Date, probe: Bool) async -> [Tunnel] {
+        if let cached = cachedTunnels,
+           !probe || now.timeIntervalSince(cached.at) < Self.auxiliaryProbeInterval {
             return cached.value
         }
+        guard probe else { return [] }
         let value = await tunnelDetector.detect()
         cachedTunnels = (value, now)
         return value
@@ -249,7 +276,7 @@ actor DiscoveryEngine {
         guard Self.isLocallyReachable(record.address) else { return false }
         let name = record.command.lowercased()
         if Self.tunnelNames.contains(name) { return false }
-        if Self.systemDenylist.contains(where: { name.contains($0) }) { return false }
+        if Self.isDenied(name) { return false }
         return true
     }
 

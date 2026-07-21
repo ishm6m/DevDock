@@ -23,7 +23,13 @@ final class DiscoveryCoordinator: ObservableObject {
 
     /// True while the menu bar panel is on screen. The user is watching, so the loop
     /// polls faster; a scan costs ~25ms, so this is cheap for the moments it's set.
-    var isPanelOpen = false
+    var isPanelOpen = false {
+        didSet { if isPanelOpen { lastChangeAt = Date() } }
+    }
+
+    /// When something last actually changed (or the user last interacted). Drives the
+    /// idle backoff in `nextInterval`.
+    private var lastChangeAt = Date()
 
     private var loopTask: Task<Void, Never>?
     private var lastServersByID: [String: DevServer] = [:]
@@ -56,7 +62,7 @@ final class DiscoveryCoordinator: ObservableObject {
         isActive = true
         loopTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
+                await self?.coalescedRefresh()
                 let nanos = UInt64(max(0.5, self?.nextInterval() ?? 3) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanos)
             }
@@ -68,14 +74,29 @@ final class DiscoveryCoordinator: ObservableObject {
     /// Open panel wins outright — the user is watching, so a server that starts under
     /// their eyes must appear immediately (`min` keeps an explicitly faster preference
     /// intact). With the panel closed a pass only feeds the menu bar count and the
-    /// started/stopped notifications, so in Low Power Mode it backs off: the user has
-    /// asked the system to conserve and nothing is on screen to go stale.
+    /// started/stopped notifications, so the loop backs off the longer nothing happens:
+    /// a dev machine sits unchanged for hours at a time, and each avoided pass is a
+    /// timer wake-up plus an `lsof` fork that nobody was waiting on. Any change — or any
+    /// user interaction — resets `lastChangeAt` and snaps the cadence back to `base`.
     private func nextInterval() -> Double {
         let base = preferencesStore.preferences.refreshInterval
         if isPanelOpen { return min(1, base) }
-        if ProcessInfo.processInfo.isLowPowerModeEnabled { return max(base, 10) }
-        return base
+
+        let quiet = Date().timeIntervalSince(lastChangeAt)
+        var interval = base
+        if quiet > Self.deepIdleAfter {
+            interval = max(base, 10)
+        } else if quiet > Self.idleAfter {
+            interval = max(base, 5)
+        }
+        // Low Power Mode: the user has asked the system to conserve and nothing is on
+        // screen to go stale, so start at the slowest rung.
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { interval = max(interval, 10) }
+        return interval
     }
+
+    private static let idleAfter: TimeInterval = 30
+    private static let deepIdleAfter: TimeInterval = 120
 
     func stop() {
         loopTask?.cancel()
@@ -89,6 +110,14 @@ final class DiscoveryCoordinator: ObservableObject {
     /// pass is wanted and returns, so rapid triggers (timer tick + button taps) never
     /// stack up concurrent scans.
     func refresh() async {
+        // Everything except the timer loop reaches discovery through here, and all of it
+        // is user-initiated (panel opened, kill, restart, manual refresh). Treat it as
+        // interaction and restore the fast cadence.
+        lastChangeAt = Date()
+        await coalescedRefresh()
+    }
+
+    private func coalescedRefresh() async {
         if isRefreshing {
             refreshRequestedAgain = true
             return
@@ -104,7 +133,12 @@ final class DiscoveryCoordinator: ObservableObject {
 
     private func performRefresh() async {
         let preferences = preferencesStore.preferences
-        let snapshot = await engine.discover(preferences: preferences)
+        // Docker and tunnels feed panel-only sections — the menu bar shows the server
+        // count, and notifications cover servers and port conflicts. Probing them with
+        // the panel closed forked `docker ps` and named every PID on the system, every
+        // few seconds, to produce data nothing could display. Opening the panel refreshes
+        // immediately, so the sections are populated before they can be read.
+        let snapshot = await engine.discover(preferences: preferences, probeAuxiliary: isPanelOpen)
 
         // Capture the baseline flag before `applyNotifications` consumes it, so the
         // attention pass can also seed silently on the very first refresh.
@@ -119,16 +153,50 @@ final class DiscoveryCoordinator: ObservableObject {
         // first pass after launch only warns, never reaps.
         autoStop.process(snapshot.servers)
 
-        // Assign only what changed. `servers` almost always changes (live CPU/memory),
-        // but the auxiliary collections rarely do — skipping their assignment avoids
-        // needlessly re-rendering those sections and keeps the panel from flickering.
-        if servers != flagged { servers = flagged }
-        if databases != snapshot.databases { databases = snapshot.databases }
-        if containers != snapshot.containers { containers = snapshot.containers }
-        if tunnels != snapshot.tunnels { tunnels = snapshot.tunnels }
-        if conflictPorts != snapshot.conflictPorts { conflictPorts = snapshot.conflictPorts }
+        // Assign only what changed — every assignment to a @Published property fires
+        // objectWillChange and re-renders the panel and the menu bar label.
+        //
+        // `servers` is the awkward one: live CPU/memory means it is *never* equal to the
+        // previous pass, so it published on every single tick. While the panel is closed
+        // the only thing on screen is the count, and nobody can see a CPU number move, so
+        // a pass that differs by nothing but resource jitter is dropped. Opening the panel
+        // refreshes immediately, so the numbers are never stale when they become visible.
+        let serversChanged = Self.differsBeyondResources(servers, flagged)
+        if servers != flagged, isPanelOpen || serversChanged {
+            servers = flagged
+        }
+        var changed = serversChanged
+        if databases != snapshot.databases { databases = snapshot.databases; changed = true }
+        if containers != snapshot.containers { containers = snapshot.containers; changed = true }
+        if tunnels != snapshot.tunnels { tunnels = snapshot.tunnels; changed = true }
+        if conflictPorts != snapshot.conflictPorts { conflictPorts = snapshot.conflictPorts; changed = true }
 
-        Log.discovery.notice("Discovered \(snapshot.servers.count) servers, \(snapshot.databases.count) databases, \(snapshot.containers.count) containers, \(snapshot.tunnels.count) tunnels")
+        // Something real happened: stay on the fast cadence.
+        if changed { lastChangeAt = Date() }
+
+        // `notice` is persisted to the unified log store; at one line per pass that was a
+        // disk write every few seconds, forever, for a message that says "nothing
+        // happened". Only transitions are worth keeping — steady state goes to `debug`,
+        // which stays in memory unless someone is actively streaming.
+        let summary = "Discovered \(snapshot.servers.count) servers, \(snapshot.databases.count) databases, \(snapshot.containers.count) containers, \(snapshot.tunnels.count) tunnels"
+        if changed {
+            Log.discovery.notice("\(summary, privacy: .public)")
+        } else {
+            Log.discovery.debug("\(summary, privacy: .public)")
+        }
+    }
+
+    /// True when two server lists differ in anything other than live resource usage —
+    /// i.e. a server appeared, went away, was reordered, or changed a displayed
+    /// attribute. Used to decide whether a pass is worth publishing.
+    private static func differsBeyondResources(_ old: [DevServer], _ new: [DevServer]) -> Bool {
+        guard old.count == new.count else { return true }
+        for (a, b) in zip(old, new) {
+            var normalized = a
+            normalized.resources = b.resources
+            if normalized != b { return true }
+        }
+        return false
     }
 
     /// Emits started / stopped / conflict notifications by diffing against the last

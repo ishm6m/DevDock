@@ -1,64 +1,87 @@
+import Darwin
 import XCTest
 @testable import DevDock
 
+/// The scanner reads live kernel state rather than parsing text, so it is tested
+/// against a socket this test binds itself: the strongest available check that the
+/// libproc walk, the LISTEN filter, and the byte-order handling are all correct.
 final class PortScannerTests: XCTestCase {
 
-    func testParsesMultipleProcesses() {
-        let output = """
-        p1234
-        cnode
-        n*:3000
-        p5678
-        cpostgres
-        n127.0.0.1:5432
-        p9999
-        credis-server
-        n[::1]:6379
-        """
-        let records = PortScanner.parse(output)
-        XCTAssertEqual(records.count, 3)
-        XCTAssertEqual(records[0], PortScanRecord(pid: 1234, command: "node", port: 3000, address: "*"))
-        XCTAssertEqual(records[1], PortScanRecord(pid: 5678, command: "postgres", port: 5432, address: "127.0.0.1"))
-        XCTAssertEqual(records[2], PortScanRecord(pid: 9999, command: "redis-server", port: 6379, address: "[::1]"))
+    private var descriptor: Int32 = -1
+
+    override func tearDown() {
+        if descriptor >= 0 { close(descriptor) }
+        descriptor = -1
+        super.tearDown()
     }
 
-    func testMultiplePortsForOneProcess() {
-        let output = """
-        p42
-        cnode
-        n*:3000
-        n*:3001
-        """
-        let records = PortScanner.parse(output)
-        XCTAssertEqual(records.count, 2)
-        XCTAssertTrue(records.allSatisfy { $0.pid == 42 && $0.command == "node" })
-        XCTAssertEqual(Set(records.map(\.port)), [3000, 3001])
+    /// Binds a listening TCP socket on a kernel-chosen loopback port.
+    private func listen(family: Int32) throws -> Int {
+        descriptor = socket(family, SOCK_STREAM, 0)
+        try XCTSkipIf(descriptor < 0, "could not create socket")
+
+        var port: UInt16 = 0
+        if family == AF_INET {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_addr.s_addr = INADDR_ANY.bigEndian
+            let bound = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            try XCTSkipIf(bound != 0, "bind failed")
+            var actual = sockaddr_in()
+            var size = socklen_t(MemoryLayout<sockaddr_in>.size)
+            _ = withUnsafeMutablePointer(to: &actual) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(descriptor, $0, &size) }
+            }
+            port = UInt16(bigEndian: actual.sin_port)
+        } else {
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            address.sin6_family = sa_family_t(AF_INET6)
+            address.sin6_addr = in6addr_loopback
+            let bound = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in6>.size))
+                }
+            }
+            try XCTSkipIf(bound != 0, "bind failed")
+            var actual = sockaddr_in6()
+            var size = socklen_t(MemoryLayout<sockaddr_in6>.size)
+            _ = withUnsafeMutablePointer(to: &actual) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(descriptor, $0, &size) }
+            }
+            port = UInt16(bigEndian: actual.sin6_port)
+        }
+        try XCTSkipIf(Darwin.listen(descriptor, 1) != 0, "listen failed")
+        return Int(port)
     }
 
-    func testIgnoresUnparseableNames() {
-        let output = """
-        p1
-        cnode
-        nsome-garbage-without-port
-        """
-        XCTAssertTrue(PortScanner.parse(output).isEmpty)
+    func testFindsAnIPv4Listener() async throws {
+        let port = try listen(family: AF_INET)
+        let records = await PortScanner().scan()
+        let match = records.first { $0.pid == getpid() && $0.port == port }
+        XCTAssertNotNil(match, "scanner missed a socket bound by this very process")
+        XCTAssertEqual(match?.address, "*", "INADDR_ANY should surface as a wildcard bind")
+        XCTAssertFalse(match?.command.isEmpty ?? true, "command name should be resolved")
     }
 
-    func testParseAddressIPv4() {
-        let parsed = PortScanner.parseAddress("127.0.0.1:8080")
-        XCTAssertEqual(parsed?.address, "127.0.0.1")
-        XCTAssertEqual(parsed?.port, 8080)
+    func testFindsAnIPv6LoopbackListener() async throws {
+        let port = try listen(family: AF_INET6)
+        let records = await PortScanner().scan()
+        let match = records.first { $0.pid == getpid() && $0.port == port }
+        XCTAssertNotNil(match)
+        XCTAssertEqual(match?.address, "[::1]")
     }
 
-    func testParseAddressIPv6UsesLastColon() {
-        let parsed = PortScanner.parseAddress("[::1]:6379")
-        XCTAssertEqual(parsed?.address, "[::1]")
-        XCTAssertEqual(parsed?.port, 6379)
-    }
-
-    func testParseAddressWildcard() {
-        let parsed = PortScanner.parseAddress("*:3000")
-        XCTAssertEqual(parsed?.address, "*")
-        XCTAssertEqual(parsed?.port, 3000)
+    /// A connected-but-not-listening socket must not appear.
+    func testIgnoresNonListeningSockets() async throws {
+        descriptor = socket(AF_INET, SOCK_STREAM, 0)
+        try XCTSkipIf(descriptor < 0, "could not create socket")
+        let records = await PortScanner().scan()
+        XCTAssertFalse(records.contains { $0.pid == getpid() && $0.port == 0 })
     }
 }
