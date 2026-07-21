@@ -14,7 +14,6 @@ final class DiscoveryCoordinator: ObservableObject {
     @Published private(set) var containers: [DockerContainer] = []
     @Published private(set) var tunnels: [Tunnel] = []
     @Published private(set) var conflictPorts: Set<Int> = []
-    @Published private(set) var isActive = false
 
     let engine: DiscoveryEngine
     private let notifications: NotificationManager
@@ -59,7 +58,6 @@ final class DiscoveryCoordinator: ObservableObject {
     /// Starts the periodic refresh loop. Safe to call more than once.
     func start() {
         guard loopTask == nil else { return }
-        isActive = true
         loopTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.coalescedRefresh()
@@ -101,7 +99,6 @@ final class DiscoveryCoordinator: ObservableObject {
     func stop() {
         loopTask?.cancel()
         loopTask = nil
-        isActive = false
     }
 
     /// Performs a discovery pass immediately (also used after user actions).

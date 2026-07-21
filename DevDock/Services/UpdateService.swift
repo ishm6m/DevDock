@@ -2,36 +2,11 @@ import Foundation
 import AppKit
 import Sparkle
 
-/// Abstraction over the software-update mechanism.
+/// The software-update mechanism.
 ///
 /// DevDock ships outside the Mac App Store (it can't be sandboxed — see the README), so
 /// it needs its own update path: without one a downloaded build can never receive a fix.
-/// Sparkle is the standard answer for a Developer ID app. The UI depends only on this
-/// protocol, never on Sparkle directly, matching the rest of the codebase (services are
-/// protocols constructed once in `AppEnvironment`).
-@MainActor
-protocol UpdateChecking: AnyObject {
-    /// Whether this build can actually check for updates.
-    ///
-    /// False for builds from source, where `SUFeedURL`/`SUPublicEDKey` are still the
-    /// placeholders committed to the tree. The UI uses this to hide update controls
-    /// rather than offer a button that can't work.
-    var supportsUpdates: Bool { get }
-
-    /// Whether Sparkle checks for updates automatically in the background. Backed by
-    /// Sparkle's own persisted setting — deliberately *not* mirrored into `Preferences`,
-    /// so there's a single source of truth.
-    var automaticallyChecksForUpdates: Bool { get set }
-
-    /// Starts the background updater. Called once, at `applicationDidFinishLaunching`,
-    /// alongside the other runtime services — never during `AppEnvironment` construction.
-    func startUpdater()
-
-    /// Runs a user-initiated update check, bringing Sparkle's window to the front.
-    func checkForUpdates()
-}
-
-/// `Sparkle`-backed `UpdateChecking`.
+/// Sparkle is the standard answer for a Developer ID app.
 ///
 /// Two things here are deliberate:
 ///
@@ -45,11 +20,14 @@ protocol UpdateChecking: AnyObject {
 ///    come forward on its own, so a manual check activates first or Sparkle's dialog would
 ///    appear behind everything (the same fix the onboarding window uses).
 @MainActor
-final class SparkleUpdater: UpdateChecking {
+final class SparkleUpdater {
 
     private let controller: SPUStandardUpdaterController
     private var started = false
 
+    /// Whether this build can actually check for updates. False for builds from source,
+    /// where `SUFeedURL`/`SUPublicEDKey` are still the placeholders committed to the tree;
+    /// the UI hides the update controls rather than offer a button that can't work.
     let supportsUpdates: Bool
 
     init() {
@@ -79,6 +57,8 @@ final class SparkleUpdater: UpdateChecking {
         controller.checkForUpdates(nil)
     }
 
+    /// Backed by Sparkle's own persisted setting — deliberately *not* mirrored into
+    /// `Preferences`, so there's a single source of truth.
     var automaticallyChecksForUpdates: Bool {
         get { controller.updater.automaticallyChecksForUpdates }
         set { controller.updater.automaticallyChecksForUpdates = newValue }

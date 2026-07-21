@@ -48,11 +48,7 @@ final class CommandRunner: @unchecked Sendable {
         return nil
     }
 
-    func run(_ executable: String, arguments: [String]) async -> CommandResult {
-        await run(executable, arguments: arguments, currentDirectory: nil)
-    }
-
-    func run(_ executable: String, arguments: [String], currentDirectory: URL?) async -> CommandResult {
+    func run(_ executable: String, arguments: [String], currentDirectory: URL? = nil) async -> CommandResult {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 guard let resolved = CommandRunner.resolveExecutable(executable) else {

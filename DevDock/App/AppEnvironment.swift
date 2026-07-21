@@ -17,7 +17,7 @@ final class AppEnvironment {
     let coordinator: DiscoveryCoordinator
     let commands: ServerCommands
     let autoStop: AutoStopController
-    let updater: any UpdateChecking
+    let updater: SparkleUpdater
 
     init() {
         let runner = CommandRunner()
@@ -28,7 +28,6 @@ final class AppEnvironment {
         let dockerService = DockerService(runner: runner)
 
         let engine = DiscoveryEngine(
-            portScanner: PortScanner(),
             processMonitor: ProcessMonitor(),
             frameworkDetector: FrameworkDetector(),
             projectLocator: ProjectLocator(),

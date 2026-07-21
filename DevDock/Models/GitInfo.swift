@@ -4,6 +4,4 @@ import Foundation
 struct GitInfo: Hashable, Codable {
     let repositoryName: String?
     let branch: String?
-
-    var hasBranch: Bool { !(branch ?? "").isEmpty }
 }

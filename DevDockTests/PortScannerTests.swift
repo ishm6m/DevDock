@@ -62,7 +62,7 @@ final class PortScannerTests: XCTestCase {
 
     func testFindsAnIPv4Listener() async throws {
         let port = try listen(family: AF_INET)
-        let records = await PortScanner().scan()
+        let records = PortScanner.scan()
         let match = records.first { $0.pid == getpid() && $0.port == port }
         XCTAssertNotNil(match, "scanner missed a socket bound by this very process")
         XCTAssertEqual(match?.address, "*", "INADDR_ANY should surface as a wildcard bind")
@@ -71,7 +71,7 @@ final class PortScannerTests: XCTestCase {
 
     func testFindsAnIPv6LoopbackListener() async throws {
         let port = try listen(family: AF_INET6)
-        let records = await PortScanner().scan()
+        let records = PortScanner.scan()
         let match = records.first { $0.pid == getpid() && $0.port == port }
         XCTAssertNotNil(match)
         XCTAssertEqual(match?.address, "[::1]")
@@ -81,7 +81,7 @@ final class PortScannerTests: XCTestCase {
     func testIgnoresNonListeningSockets() async throws {
         descriptor = socket(AF_INET, SOCK_STREAM, 0)
         try XCTSkipIf(descriptor < 0, "could not create socket")
-        let records = await PortScanner().scan()
+        let records = PortScanner.scan()
         XCTAssertFalse(records.contains { $0.pid == getpid() && $0.port == 0 })
     }
 }

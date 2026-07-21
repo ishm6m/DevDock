@@ -5,8 +5,8 @@ import AppKit
 struct PreferencesView: View {
     @ObservedObject var store: PreferencesStore
     /// Not observed: the only mutable state is Sparkle's own persisted setting, driven
-    /// through a manual `Binding` below. Kept as `any` to match the DI seam.
-    let updater: any UpdateChecking
+    /// through a manual `Binding` below.
+    let updater: SparkleUpdater
 
     var body: some View {
         TabView {

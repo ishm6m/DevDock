@@ -10,6 +10,4 @@ enum Log {
     static let app = Logger(subsystem: subsystem, category: "app")
     static let discovery = Logger(subsystem: subsystem, category: "discovery")
     static let commands = Logger(subsystem: subsystem, category: "commands")
-    static let docker = Logger(subsystem: subsystem, category: "docker")
-    static let logs = Logger(subsystem: subsystem, category: "logs")
 }

@@ -1,10 +1,47 @@
 import Foundation
 
+/// What the auto-stop policy wants done with a server on this refresh pass.
+enum AutoStopAction: Equatable {
+    case none
+    /// Just became an idle+old candidate — post the "will auto-stop" heads-up.
+    case warn
+    /// Stayed an idle candidate through the grace window — stop it now.
+    case stop
+}
+
+/// The pure policy behind "auto-stop idle servers" — no clock, no process access, no
+/// preferences lookup, so it is fully unit-testable. `AutoStopController` below owns the
+/// side effects and the per-PID state.
+enum AutoStop {
+
+    /// How long a server must stay an idle candidate after the first warning before it is
+    /// actually stopped. In-memory only, so it resets each launch — a server is never
+    /// stopped in a session without first being warned in it.
+    static let graceInterval: TimeInterval = 5 * 60
+
+    /// A server *qualifies* when it has been up at least `thresholdSeconds` **and** is
+    /// near-idle. A qualifying lapse (a CPU spike) clears the marker, so a server that
+    /// goes busy mid-window is never stopped without a fresh warning.
+    static func evaluate(
+        uptime: TimeInterval,
+        cpuPercent: Double,
+        thresholdSeconds: TimeInterval,
+        candidateSince: Date?,
+        now: Date
+    ) -> (action: AutoStopAction, candidateSince: Date?) {
+        guard uptime >= thresholdSeconds, cpuPercent < ServerAttention.idleCPUPercent else {
+            return (.none, nil)
+        }
+        guard let since = candidateSince else { return (.warn, now) }
+        return (now.timeIntervalSince(since) >= graceInterval ? .stop : .none, since)
+    }
+}
+
 /// Drives the "auto-stop idle servers" policy each discovery pass.
 ///
 /// This is the one place DevDock stops a process without a click, so it is deliberately
 /// conservative. It owns the per-PID grace-window state and applies the exemptions, but
-/// delegates the actual decision to the pure `AutoStop` evaluator and the actual kill to
+/// delegates the decision to the pure `AutoStop` evaluator above and the kill to
 /// `ServerCommands.kill` — which routes through `KillStrategy`/`Proc.isSafeToSignal`, the
 /// only sanctioned termination path. The coordinator calls `process(_:)` once per refresh.
 @MainActor

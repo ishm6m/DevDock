@@ -18,7 +18,6 @@ struct DiscoverySnapshot {
 /// keeps refreshes cheap.
 actor DiscoveryEngine {
 
-    private let portScanner: PortScanner
     private let processMonitor: ProcessMonitor
     private let frameworkDetector: FrameworkDetector
     private let projectLocator: ProjectLocator
@@ -90,7 +89,6 @@ actor DiscoveryEngine {
     }
 
     init(
-        portScanner: PortScanner,
         processMonitor: ProcessMonitor,
         frameworkDetector: FrameworkDetector,
         projectLocator: ProjectLocator,
@@ -99,7 +97,6 @@ actor DiscoveryEngine {
         dockerService: DockerService,
         tunnelDetector: TunnelDetector
     ) {
-        self.portScanner = portScanner
         self.processMonitor = processMonitor
         self.frameworkDetector = frameworkDetector
         self.projectLocator = projectLocator
@@ -129,7 +126,7 @@ actor DiscoveryEngine {
     ///   panel-only sections, so the caller passes `false` while the panel is closed and
     ///   the last known values are reused — see `containers(now:probe:)`.
     func discover(preferences: Preferences, probeAuxiliary: Bool = true) async -> DiscoverySnapshot {
-        let records = await portScanner.scan()
+        let records = PortScanner.scan()
         let now = Date()
 
         let databases = preferences.monitorDatabases ? databaseDetector.detect(from: records) : []

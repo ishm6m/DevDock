@@ -36,7 +36,7 @@ struct PortScanRecord: Hashable {
 /// not report PIDs; `NSNetServiceBrowser`/Bonjour only sees advertised services, not
 /// arbitrary bound ports; and there is no public notification for "a socket was bound",
 /// so polling — cheaply — is the only option.
-final class PortScanner: @unchecked Sendable {
+enum PortScanner {
 
     /// `proc_pidinfo` / socket flavors, declared with raw values so we don't depend on
     /// the C macros being imported into Swift (matching `Proc`).
@@ -48,7 +48,7 @@ final class PortScanner: @unchecked Sendable {
     private static let IPV4_FLAG: UInt8 = 0x1         // INI_IPV4
     private static let IPV6_FLAG: UInt8 = 0x2         // INI_IPV6
 
-    func scan() async -> [PortScanRecord] {
+    static func scan() -> [PortScanRecord] {
         var records: [PortScanRecord] = []
         for pid in Proc.allPIDs() {
             let sockets = Self.listeningSockets(pid: pid)

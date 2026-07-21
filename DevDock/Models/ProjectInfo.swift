@@ -22,6 +22,5 @@ struct ProjectInfo: Hashable, Codable {
         (rootPath as NSString).lastPathComponent
     }
 
-    var url: URL { URL(fileURLWithPath: rootPath) }
     var abbreviatedPath: String { Formatters.abbreviatePath(rootPath) }
 }

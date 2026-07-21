@@ -31,14 +31,6 @@ enum Proc {
         let cpuTimeNanoseconds: UInt64
         let uid: uid_t
         let startTime: Date
-
-        /// The full command line as a single string, or the executable path as a fallback.
-        var commandLine: String {
-            if !arguments.isEmpty {
-                return arguments.joined(separator: " ")
-            }
-            return executablePath ?? name
-        }
     }
 
     /// DevDock's own process identifier. Never a valid signal target.
