@@ -2,12 +2,14 @@
   <img src="DevDock-logo.png" alt="DevDock" width="160" height="160" />
 </p>
 
-# DevDock 🚀
+<h1 align="center">DevDock 🚀</h1>
 
-[![CI](https://github.com/ishm6m/DevDock/actions/workflows/ci.yml/badge.svg)](https://github.com/ishm6m/DevDock/actions/workflows/ci.yml)
-[![Download](https://img.shields.io/github/v/release/ishm6m/DevDock?label=download&sort=semver)](https://github.com/ishm6m/DevDock/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+<p align="center">
+  <a href="https://github.com/ishm6m/DevDock/actions/workflows/ci.yml"><img src="https://github.com/ishm6m/DevDock/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/ishm6m/DevDock/releases/latest"><img src="https://img.shields.io/github/v/release/ishm6m/DevDock?label=download&sort=semver" alt="Download" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-informational.svg" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple" alt="Platform" />
+</p>
 
 **A developer control center that lives in your macOS menu bar.**
 
