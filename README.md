@@ -33,6 +33,39 @@ and controllable from one place.
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/servers.png" alt="DevDock panel listing running dev servers" width="640" />
+  <br />
+  <em>Every listening dev server, live — framework, <code>localhost:port</code>, CPU, memory, uptime, PID, project folder, and git branch.</em>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/kill-all.png" alt="Kill All confirmation dialog" width="100%" /><br />
+      <em>One-click Kill / Kill All, with a confirmation step.</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/preferences-attention.png" alt="Auto-stop idle servers preferences" width="100%" /><br />
+      <em>Flag forgotten servers and auto-stop idle ones.</em>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/preferences-detect.png" alt="Detection preferences for Docker, databases, and tunnels" width="100%" /><br />
+      <em>Detect Docker, databases, and tunnels too.</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/empty-state.png" alt="Empty state before any server starts" width="100%" /><br />
+      <em>Zero-config: start a server and it just appears.</em>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## ⬇️ Download & install
 
 1. Download the latest **`DevDock-x.y.z.dmg`** from the
