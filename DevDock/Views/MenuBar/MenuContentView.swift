@@ -9,6 +9,13 @@ struct MenuContentView: View {
     @ObservedObject var viewModel: MenuBarViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The measured height of the scrollable content, used to size the panel to its
+    /// content instead of letting the ScrollView collapse in the self-sizing window.
+    @State private var contentHeight: CGFloat = 0
+
+    /// The tallest the scrollable list grows before it caps and scrolls internally.
+    private static let maxPanelContentHeight: CGFloat = 520
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -136,7 +143,7 @@ struct MenuContentView: View {
             EmptyStateView(isSearching: true)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     if !viewModel.conflictPortsSummary.isEmpty { conflictBanner }
 
                     section(title: "Favorites", systemImage: "star.fill", servers: viewModel.favoriteServers)
@@ -157,9 +164,19 @@ struct MenuContentView: View {
                     Color.clear.frame(height: 6)
                 }
                 .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.85), value: layoutToken)
+                // Measure the real content height so the panel can size to it. A bare
+                // ScrollView has no intrinsic height, so in the self-sizing MenuBarExtra
+                // window it collapses to nothing whenever it's the *first* content shown —
+                // which is exactly the case of a server that was already running when the
+                // panel opens. Driving an explicit height off the measured content fixes
+                // that while still capping at `maxPanelContentHeight` and scrolling beyond.
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                })
             }
-            .frame(maxHeight: 520)
+            .frame(height: min(contentHeight, Self.maxPanelContentHeight))
             .scrollBounceBehavior(.basedOnSize)
+            .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
         }
     }
 
@@ -245,6 +262,14 @@ struct MenuContentView: View {
             && viewModel.databases.isEmpty
             && viewModel.containers.isEmpty
             && viewModel.tunnels.isEmpty
+    }
+}
+
+/// Carries the scrollable content's measured height up to the panel so it can size to it.
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
