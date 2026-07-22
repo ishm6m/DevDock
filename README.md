@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="DevDock-logo.png" alt="DevDock" width="160" height="160" />
+  <img src="docs/DevDock-logo.png" alt="DevDock" width="160" height="160" />
 </p>
 
 <h1 align="center">DevDock 🚀</h1>
