@@ -40,13 +40,17 @@ else
   API="https://api.github.com/repos/${REPO}/releases/latest"
 fi
 
-# Parse without jq (not installed on a stock Mac): pull the first .dmg asset URL.
-DMG_URL="$(curl -fsSL "$API" \
-  | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.dmg"' \
-  | head -1 | sed -E 's/.*"(https[^"]*)"$/\1/')"
+# Parse without jq (not installed on a stock Mac). Prefer a .dmg, fall back to a
+# .zip so the installer keeps working if the release format ever changes.
+ASSETS="$(curl -fsSL "$API" \
+  | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*"' \
+  | sed -E 's/.*"(https[^"]*)"$/\1/')"
 
-if [[ -z "$DMG_URL" ]]; then
-  echo "error: no .dmg asset found at $API" >&2
+ASSET_URL="$(grep -i '\.dmg$' <<<"$ASSETS" | head -1)"
+[[ -z "$ASSET_URL" ]] && ASSET_URL="$(grep -i '\.zip$' <<<"$ASSETS" | head -1)"
+
+if [[ -z "$ASSET_URL" ]]; then
+  echo "error: no .dmg or .zip asset found at $API" >&2
   echo "       Check https://github.com/${REPO}/releases for available builds." >&2
   exit 1
 fi
@@ -59,17 +63,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DMG="$TMP/${APP_NAME}.dmg"
-echo "==> Downloading $(basename "$DMG_URL")"
-curl -fL --progress-bar "$DMG_URL" -o "$DMG"
+ARCHIVE="$TMP/$(basename "$ASSET_URL")"
+echo "==> Downloading $(basename "$ASSET_URL")"
+curl -fL --progress-bar "$ASSET_URL" -o "$ARCHIVE"
 
-echo "==> Mounting disk image"
-MOUNT="$TMP/mnt"
-mkdir -p "$MOUNT"
-hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
+if [[ "$ARCHIVE" == *.dmg ]]; then
+  echo "==> Mounting disk image"
+  MOUNT="$TMP/mnt"
+  mkdir -p "$MOUNT"
+  hdiutil attach "$ARCHIVE" -mountpoint "$MOUNT" -nobrowse -quiet
+  SRC="$MOUNT/${APP_NAME}.app"
+else
+  echo "==> Extracting archive"
+  # ditto preserves bundle metadata and symlinks correctly; unzip does not.
+  ditto -x -k "$ARCHIVE" "$TMP/unpacked"
+  SRC="$(find "$TMP/unpacked" -maxdepth 2 -name "${APP_NAME}.app" -print -quit)"
+fi
 
-SRC="$MOUNT/${APP_NAME}.app"
-[[ -d "$SRC" ]] || { echo "error: ${APP_NAME}.app not found inside the disk image" >&2; exit 1; }
+[[ -n "$SRC" && -d "$SRC" ]] || { echo "error: ${APP_NAME}.app not found in the download" >&2; exit 1; }
 
 # Replacing a running bundle leaves the old process on deleted files; quit first.
 if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
@@ -82,10 +93,22 @@ echo "==> Installing to ${DEST}/${APP_NAME}.app"
 rm -rf "${DEST:?}/${APP_NAME}.app"
 cp -R "$SRC" "$DEST/"
 
-# curl-downloaded files carry no quarantine flag; strip it anyway so the install
-# is warning-free even if this script was fed a browser-downloaded image.
-xattr -dr com.apple.quarantine "${DEST}/${APP_NAME}.app" 2>/dev/null || true
+# Safety net. curl-downloaded files carry no com.apple.quarantine flag, so this
+# is normally a no-op — it matters only if the archive reached this script by
+# some other route. Verified not to disturb the ad-hoc code signature.
+xattr -cr "${DEST}/${APP_NAME}.app" 2>/dev/null || true
 
 echo "==> Launching"
 open -a "${DEST}/${APP_NAME}.app"
-echo "Done — look for the rocket icon in your menu bar."
+
+cat <<EOF
+
+  ✅ ${APP_NAME} installed to ${DEST}/${APP_NAME}.app — and launched.
+
+  Look for the 🚀 rocket icon in your menu bar; it shows a live count of your
+  running dev servers. Click it to see them, or open Preferences from the panel.
+
+  No Gatekeeper warning appeared because this installer downloads with curl,
+  which never applies the quarantine flag that triggers it.
+
+EOF

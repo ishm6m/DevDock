@@ -29,9 +29,9 @@ and controllable from one place.
 - **Platform:** macOS 14 (Sonoma) and later
 - **License:** MIT (open source)
 - **Distribution:** Direct download from [Releases](../../releases/latest). Currently
-  **ad-hoc signed / not yet notarized**, so a *browser* download trips Gatekeeper (on macOS
-  15+ the dialog offers only *Move to Trash* / *Done*). The [one-line curl
-  install](#recommended--one-line-install-no-gatekeeper-warning) avoids that entirely.
+  **ad-hoc signed / not notarized** (see [A note on the Gatekeeper
+  warning](#a-note-on-the-gatekeeper-warning)), so a *browser* download trips Gatekeeper on
+  first launch. The [Quick install](#quick-install-recommended) avoids that entirely.
   *Not* sandboxed — see [Why it isn't sandboxed](#why-devdock-isnt-sandboxed). Maintainers who
   want a warning-free build can notarize it — see [Distribution (notarization)](#distribution-notarization).
 
@@ -73,49 +73,64 @@ and controllable from one place.
 
 ## ⬇️ Download & install
 
-### Recommended — one-line install (no Gatekeeper warning)
+### Quick install (recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ishm6m/DevDock/main/scripts/install.sh | bash
 ```
 
-Downloads the latest release, installs it to `/Applications`, and launches it. **This path
-shows no security warning at all** — the "Apple could not verify…" prompt is triggered by
-the `com.apple.quarantine` flag that *web browsers* attach to downloads, and `curl` doesn't
-set it. Pass a version to pin one: `… | bash -s 1.0.3`. Read the script first if you'd
-rather not pipe to a shell — it's [`scripts/install.sh`](scripts/install.sh), ~90 lines.
+Downloads the latest release, installs it to `/Applications`, and launches it — **with no
+Gatekeeper warning**. The warning is triggered by the `com.apple.quarantine` flag that *web
+browsers* attach to downloads; `curl` never sets it, so the prompt never appears.
 
-### Or install the DMG manually
+Pin a specific version with `… | bash -s 1.0.3`. Prefer not to pipe a script into a shell?
+Read [`scripts/install.sh`](scripts/install.sh) first — it's ~100 lines and does exactly
+what's described above.
+
+### Manual install
 
 1. Download the latest **`DevDock-x.y.z.dmg`** from the
    **[Releases page](../../releases/latest)**.
 2. Open the DMG and drag **DevDock** into your **Applications** folder.
-3. **First launch only** — because the build isn't notarized yet, macOS Gatekeeper blocks
-   it with *"DevDock cannot be opened because Apple could not verify that it is free of
-   malware…"*, offering only **Move to Trash** and **Done**. Click **Done** (never *Move to
-   Trash*), then do **one** of the following.
+3. On first launch macOS will block it (see [Why the warning
+   appears](#a-note-on-the-gatekeeper-warning) below). Use whichever of these works on your
+   macOS version:
 
-   **Fastest — Terminal (works on every macOS version):**
+   - **Control-click → Open → Open.** The classic bypass. Works on macOS 14 (Sonoma) and
+     earlier only.
+   - **Terminal** — reliable on every version, including macOS 15+:
 
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/DevDock.app
-   ```
+     ```bash
+     xattr -cr /Applications/DevDock.app
+     ```
 
-   Then open DevDock normally. This strips the quarantine flag the browser attached to the
-   download; it does not disable Gatekeeper for anything else.
+     Then open DevDock normally.
+   - **System Settings → Privacy & Security.** Try to open the app, dismiss the dialog, then
+     scroll to the **Security** section and click **Open Anyway** (it appears for about an
+     hour after the blocked launch), then confirm.
 
-   **Or, without Terminal — macOS 15 (Sequoia) and later:**
-   after dismissing the dialog, go to  **System Settings → Privacy & Security**, scroll to
-   the **Security** section, and click **Open Anyway** next to the "DevDock was blocked"
-   message (it appears only for about an hour after the blocked launch), then confirm.
-
-   **Or, macOS 14 (Sonoma):** **Control-click** DevDock in Applications → **Open** →
-   **Open**. Apple removed this shortcut in macOS 15, so it does nothing on Sequoia or
-   later — use one of the two options above there.
+> **macOS 15 (Sequoia) removed the Control-click bypass.** On Sequoia and later the block
+> dialog offers only *Move to Trash* and *Done*, and Control-click → Open no longer works.
+> Use the Terminal command or System Settings there. If you see that dialog, click **Done**
+> — not *Move to Trash*.
 
 After that it launches normally. Look for the **rocket icon** in your menu bar with a live
 server count. DevDock keeps itself up to date via Sparkle once the maintainer configures
 release signing; until then, grab new versions from Releases.
+
+### A note on the Gatekeeper warning
+
+DevDock is **ad-hoc signed but not notarized**. Notarizing a Mac app requires membership in
+the Apple Developer Program at $99/year, and DevDock is an independently funded open-source
+project — so macOS shows *"Apple could not verify that DevDock is free of malware"* the
+first time you open a browser-downloaded copy.
+
+This is expected, and it's a statement about paperwork rather than about the code: macOS is
+reporting that it can't find an Apple-issued developer certificate, not that it found
+anything wrong. The build is reproducible from source — see [Getting
+started](#getting-started) — and the [release workflow](.github/workflows/release.yml) that
+produces the DMG runs entirely in public on GitHub Actions. The Quick install above avoids
+the prompt; if notarization becomes possible later the warning goes away for everyone.
 
 > Prefer to build it yourself? See [Getting started](#getting-started).
 
