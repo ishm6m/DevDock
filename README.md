@@ -79,7 +79,7 @@ and controllable from one place.
      xattr -dr com.apple.quarantine /Applications/DevDock.app
      ```
 
-After that it launches normally. Look for the **bolt icon** in your menu bar with a live
+After that it launches normally. Look for the **rocket icon** in your menu bar with a live
 server count. DevDock keeps itself up to date via Sparkle once the maintainer configures
 release signing; until then, grab new versions from Releases.
 
@@ -144,7 +144,7 @@ after pulling. Edit `project.yml` to change build settings.
 > cached. Building from source needs no update keys — auto‑update stays dormant until a
 > maintainer configures the release credentials below.
 
-When it launches you'll see a bolt icon with a live server count in the menu bar.
+When it launches you'll see a rocket icon with a live server count in the menu bar.
 Click it for the panel.
 
 ---
