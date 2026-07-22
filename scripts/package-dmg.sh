@@ -4,7 +4,9 @@
 #
 # No Apple Developer account required — the app is ad-hoc signed ("Sign to Run
 # Locally"), which is enough to run on any Mac after the user clears the
-# quarantine flag (right-click → Open, or `xattr -dr com.apple.quarantine`).
+# quarantine flag (`xattr -dr com.apple.quarantine`, or System Settings →
+# Privacy & Security → "Open Anyway"). Note that an ad-hoc build always trips
+# Gatekeeper on download; only Developer ID signing + notarization avoids it.
 # Sparkle auto-update stays dormant (Info.plist ships placeholders) until a
 # maintainer configures release credentials.
 #
